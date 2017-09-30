@@ -1,3 +1,5 @@
+module ExplicState where
+
 type Symbol = String
 
 data Dictionary key value = 
@@ -5,7 +7,7 @@ data Dictionary key value =
     | ExtendDict key value (Dictionary key value)
     deriving (Show, Eq)
 
-type Environment = Dictionary Symbol ExpValue
+type Environment = Dictionary Symbol ExpVal
 
 applyDict :: Eq k => Dictionary k v -> k -> Maybe v
 applyDict EmptyDict _ = Nothing
@@ -19,20 +21,20 @@ applyDict (ExtendDict key value tail) target =
 applyEnv x y = applyDict x y
 
 type Location = Integer
-type Store = (Location, [ExpValue])
+type Store = (Location, [ExpVal])
 
 emptyStore = (-1, [])
 
-setStore :: Store -> Location -> ExpValue -> Store
+setStore :: Store -> Location -> ExpVal -> Store
 setStore (currentLoc, storage) i newvalue =
   if (currentLoc < i)
   then (error "Unexpected behaviour")
-  else setList (currentLoc - i) storage newvalue
+  else (currentLoc, setList (currentLoc - i) storage newvalue)
   where setList :: Integer -> [a] -> a -> [a]
         setList 0 (x:t) r = r:t
         setList i (x:t) r = x : (setList (i - 1) t r)
 
-getStore :: Store -> Location -> ExpValue
+getStore :: Store -> Location -> ExpVal
 getStore (currentLoc, storage) i =
   if (currentLoc < i)
   then (error "Storage Unfound.")
@@ -44,7 +46,7 @@ getStore (currentLoc, storage) i =
 data ExpVal =
   NumVal Integer
   | BoolVal Bool
-  | ProcVal Symbol Exp Env
+  | ProcVal Symbol Exp Environment
   | RefVal Integer 
 
 data Exp =
@@ -62,7 +64,7 @@ data Exp =
   | Beginblock [Exp]
 
 
-value_of :: Exp -> Environment -> Store -> (ExpValue, Store)
+value_of :: Exp -> Environment -> Store -> (ExpVal, Store)
 value_of (ConstExp i) env st = (NumVal i, st)
 value_of (ZeroTestExp e) env st =
   let ((NumVal i), st0) = value_of e env st
@@ -80,7 +82,30 @@ value_of (VarExp s) env st =
   let (Just x) = applyEnv env s
   in (x, st)
 value_of (LetExp s bind body) env st =
-  
+  let (bindval, st0) = value_of bind env st
+  in value_of body (ExtendDict s bindval env) st0
+value_of (ProcExp s body) env st =
+  (ProcVal s body env, st)
+value_of (CallProcExp f arg) env st =
+  let ((ProcVal para body env'), st0) = value_of f env st
+  in let ( argument, st1) = value_of arg env st0
+     in value_of body (ExtendDict para argument env') st1
+value_of (NewrefExp e) env st =
+  let (initialvalue, st0) = value_of e env st
+  in let (loc, storage) = st0
+     in (RefVal (loc + 1), (loc + 1, initialvalue : storage))
+value_of (DerefExp e) env st =
+  let ((RefVal i), st0) = value_of e env st
+  in (getStore st0 i, st0)
+value_of (SetrefExp ref v) env st =
+  let ((RefVal i), st0) = value_of ref env st
+  in let ( newval , st1) = value_of v env st
+     in (newval, setStore st1 i newval)
+value_of (Beginblock (x:[])) env st =
+  value_of x env st
+value_of (Beginblock (x:y)) env st =
+  let (_ , st0) = value_of x env st
+  in value_of (Beginblock y) env st0
      
 
     
