@@ -1,3 +1,9 @@
+module LETREC0
+(Symbol,
+ Dictionary, 
+ExpValue,
+Environment,
+Exp(..)) where
 
 type Symbol = Integer
 
@@ -5,9 +11,6 @@ data Dictionary key value =
     EmptyDict 
     | ExtendDict key value (Dictionary key value)
     deriving (Show, Eq)
-
-f :: Eq a => a -> a -> Bool 
-f a b = a == b
 
 data ExpValue = 
     NumVal Integer 
